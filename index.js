@@ -268,6 +268,7 @@ async function main() {
 
   // Phase 3: enrich contact info (resumable, skips already-enriched)
   console.log('=== PHASE 3: Enriching email / phone / WhatsApp ===');
+  const MEMORY_LIMIT_MB = 350; // restart before Node's heap actually fills up
   for (let i = 0; i < progress.companies.length; i++) {
     const c = progress.companies[i];
     if (c.enriched) continue; // skip already done (resumability)
@@ -285,6 +286,15 @@ async function main() {
       console.log(`  enriched: ${progress.enrichedCount}/${progress.companies.length}`);
       saveProgress(progress);
       saveExcel(progress.companies); // incremental save - safe to stop/resume anytime
+
+      const heapUsedMB = process.memoryUsage().heapUsed / 1024 / 1024;
+      console.log(`  memory: ${heapUsedMB.toFixed(0)} MB`);
+      if (heapUsedMB > MEMORY_LIMIT_MB) {
+        console.log(`  Memory threshold reached (${heapUsedMB.toFixed(0)}MB). Restarting cleanly to free memory. Progress is saved — will resume automatically.`);
+        saveProgress(progress);
+        saveExcel(progress.companies);
+        process.exit(0); // clean exit; Railway restart policy will bring it back up and it will resume from /data
+      }
     }
   }
 
