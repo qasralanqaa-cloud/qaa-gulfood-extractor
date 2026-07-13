@@ -114,8 +114,15 @@ async function extractFullList() {
 // ============ PART 2: ENRICHMENT (website -> website, then contact scrape) ============
 async function fetchWebsiteFromProfile(profileUrl) {
   try {
-    const res = await axios.get(profileUrl, { httpsAgent: agent, headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 15000 });
-    const $ = cheerio.load(res.data);
+    const res = await axios.get(profileUrl, {
+      httpsAgent: agent,
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      timeout: 15000,
+      responseType: 'text',
+      transformResponse: [(data) => data]
+    });
+    const html = typeof res.data === 'string' ? res.data : String(res.data);
+    const $ = cheerio.load(html);
     return $('.social_website a').attr('href') || '';
   } catch (e) { return ''; }
 }
@@ -163,8 +170,15 @@ function normalizeUrl(website, path) {
 }
 async function fetchPageSafe(url) {
   try {
-    const res = await axios.get(url, { httpsAgent: agent, headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 15000, maxRedirects: 5 });
-    return res.data;
+    const res = await axios.get(url, {
+      httpsAgent: agent,
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      timeout: 15000,
+      maxRedirects: 5,
+      responseType: 'text',
+      transformResponse: [(data) => data] // force raw string, never auto-parse JSON
+    });
+    return typeof res.data === 'string' ? res.data : String(res.data);
   } catch (e) { return null; }
 }
 
@@ -177,7 +191,7 @@ async function enrichContact(website, countryHint) {
     const url = normalizeUrl(website, path) || (path === '' ? website : null);
     if (!url) continue;
     const html = await fetchPageSafe(url);
-    if (!html) continue;
+    if (!html || typeof html !== 'string') continue;
     const $ = cheerio.load(html);
     allEmails = allEmails.concat(html.match(EMAIL_REGEX) || []);
     allPhones = allPhones.concat(extractPhones($('body').text(), countryHint));
@@ -257,7 +271,13 @@ async function main() {
   for (let i = 0; i < progress.companies.length; i++) {
     const c = progress.companies[i];
     if (c.enriched) continue; // skip already done (resumability)
-    const enriched = await enrichContact(c.website, c.country);
+    let enriched;
+    try {
+      enriched = await enrichContact(c.website, c.country);
+    } catch (e) {
+      console.log(`  Skipping ${c.company_name} due to error: ${e.message}`);
+      enriched = { email: '', email_confidence: 0, phones: [], whatsapp: '', whatsapp_confidence: '', status: 'error' };
+    }
     Object.assign(c, enriched, { enriched: true });
     progress.enrichedCount++;
 
