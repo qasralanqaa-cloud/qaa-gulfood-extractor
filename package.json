@@ -1,0 +1,15 @@
+{
+  "name": "gulfood-lead-extractor",
+  "version": "1.0.0",
+  "description": "QAA Trade Intelligence - Gulfood exhibitor extraction and enrichment pipeline",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "libphonenumber-js": "^1.11.15",
+    "xlsx": "^0.18.5"
+  }
+}
