@@ -290,10 +290,10 @@ async function main() {
       const heapUsedMB = process.memoryUsage().heapUsed / 1024 / 1024;
       console.log(`  memory: ${heapUsedMB.toFixed(0)} MB`);
       if (heapUsedMB > MEMORY_LIMIT_MB) {
-        console.log(`  Memory threshold reached (${heapUsedMB.toFixed(0)}MB). Restarting cleanly to free memory. Progress is saved — will resume automatically.`);
+        console.log(`  Memory threshold reached (${heapUsedMB.toFixed(0)}MB). Restarting to free memory. Progress is saved — will resume automatically.`);
         saveProgress(progress);
         saveExcel(progress.companies);
-        process.exit(0); // clean exit; Railway restart policy will bring it back up and it will resume from /data
+        process.exit(1); // exit "as failure" so Railway's On-Failure restart policy picks it back up
       }
     }
   }
