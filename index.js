@@ -13,7 +13,7 @@ const path = require('path');
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
   if (req.url === '/download') {
-    const filePath = path.join(__dirname, OUTPUT_FILE);
+    const filePath = path.resolve(OUTPUT_FILE);
     if (fs.existsSync(filePath)) {
       res.writeHead(200, {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -47,8 +47,13 @@ http.createServer((req, res) => {
 const agent = new https.Agent({ rejectUnauthorized: false });
 const BASE = 'https://exhibitors.gulfood.com/gulfood-2026/Exhibitor';
 const LIMIT = 100;
-const PROGRESS_FILE = './progress.json';
-const OUTPUT_FILE = './gulfood_2026_full.xlsx';
+
+// If a persistent volume is mounted at /data, use it so progress survives
+// restarts/redeploys. Otherwise fall back to the local folder (temporary).
+const DATA_DIR = fs.existsSync('/data') ? '/data' : '.';
+const PROGRESS_FILE = path.join(DATA_DIR, 'progress.json');
+const OUTPUT_FILE = path.join(DATA_DIR, 'gulfood_2026_full.xlsx');
+console.log(`Using data directory: ${DATA_DIR} (persistent volume: ${DATA_DIR === '/data'})`);
 
 // ============ PART 1: LIST EXTRACTION ============
 async function fetchListPage(start) {
