@@ -4,6 +4,45 @@ const cheerio = require('cheerio');
 const parsePhoneNumber = require('libphonenumber-js').parsePhoneNumberFromString;
 const XLSX = require('xlsx');
 const fs = require('fs');
+const http = require('http');
+const path = require('path');
+
+// ============ SIMPLE DOWNLOAD SERVER ============
+// Railway needs an HTTP port open to keep the service healthy, and this
+// also gives you a real download link for the output file at any time.
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  if (req.url === '/download') {
+    const filePath = path.join(__dirname, OUTPUT_FILE);
+    if (fs.existsSync(filePath)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename="gulfood_2026_full.xlsx"'
+      });
+      fs.createReadStream(filePath).pipe(res);
+    } else {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('File not ready yet. Check /status first.');
+    }
+  } else if (req.url === '/status') {
+    const progress = loadProgress();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      listExtracted: progress.listExtracted,
+      totalCompanies: progress.companies ? progress.companies.length : 0,
+      enrichedCount: progress.enrichedCount || 0
+    }));
+  } else {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`
+      <html dir="rtl" lang="fa" style="font-family:Tahoma;text-align:center;padding:50px;">
+        <h2>Gulfood Extractor در حال اجراست</h2>
+        <p><a href="/status">وضعیت پیشرفت</a></p>
+        <p><a href="/download">دانلود فایل اکسل (وقتی آماده باشه)</a></p>
+      </html>
+    `);
+  }
+}).listen(PORT, () => console.log(`Download server listening on port ${PORT}`));
 
 const agent = new https.Agent({ rejectUnauthorized: false });
 const BASE = 'https://exhibitors.gulfood.com/gulfood-2026/Exhibitor';
