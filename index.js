@@ -119,7 +119,9 @@ async function fetchWebsiteFromProfile(profileUrl) {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       timeout: 15000,
       responseType: 'text',
-      transformResponse: [(data) => data]
+      transformResponse: [(data) => data],
+      maxContentLength: 3 * 1024 * 1024,
+      maxBodyLength: 3 * 1024 * 1024
     });
     const html = typeof res.data === 'string' ? res.data : String(res.data);
     const $ = cheerio.load(html);
@@ -176,7 +178,9 @@ async function fetchPageSafe(url) {
       timeout: 15000,
       maxRedirects: 5,
       responseType: 'text',
-      transformResponse: [(data) => data] // force raw string, never auto-parse JSON
+      transformResponse: [(data) => data], // force raw string, never auto-parse JSON
+      maxContentLength: 3 * 1024 * 1024, // 3MB cap - abort huge/misbehaving responses instead of buffering them fully
+      maxBodyLength: 3 * 1024 * 1024
     });
     return typeof res.data === 'string' ? res.data : String(res.data);
   } catch (e) { return null; }
@@ -253,12 +257,21 @@ async function main() {
 
   // Phase 2: get website from profile page (if missing)
   console.log('=== PHASE 2: Fetching website URLs from profiles ===');
+  const MEMORY_LIMIT_MB = 200;
   for (let i = 0; i < progress.companies.length; i++) {
     const c = progress.companies[i];
     if (c.website === undefined) {
       c.website = c.profile_url ? await fetchWebsiteFromProfile(c.profile_url) : '';
+
+      const heapUsedMB = process.memoryUsage().heapUsed / 1024 / 1024;
+      if (heapUsedMB > MEMORY_LIMIT_MB) {
+        console.log(`  [Phase 2] Memory threshold reached (${heapUsedMB.toFixed(0)}MB) at company ${i}. Restarting to free memory.`);
+        saveProgress(progress);
+        process.exit(1);
+      }
+
       if (i % 50 === 0) {
-        console.log(`  websites: ${i}/${progress.companies.length}`);
+        console.log(`  websites: ${i}/${progress.companies.length}  memory: ${heapUsedMB.toFixed(0)}MB`);
         saveProgress(progress);
       }
       await new Promise(r => setTimeout(r, 200));
@@ -268,7 +281,6 @@ async function main() {
 
   // Phase 3: enrich contact info (resumable, skips already-enriched)
   console.log('=== PHASE 3: Enriching email / phone / WhatsApp ===');
-  const MEMORY_LIMIT_MB = 200; // lower + checked every iteration for a faster, safer trigger
   for (let i = 0; i < progress.companies.length; i++) {
     const c = progress.companies[i];
     if (c.enriched) continue; // skip already done (resumability)
