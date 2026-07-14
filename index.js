@@ -120,10 +120,11 @@ async function fetchWebsiteFromProfile(profileUrl) {
       timeout: 15000,
       responseType: 'text',
       transformResponse: [(data) => data],
-      maxContentLength: 3 * 1024 * 1024,
-      maxBodyLength: 3 * 1024 * 1024
+      maxContentLength: 500 * 1024, // 500KB cap - large pages block the event loop during sync parsing
+      maxBodyLength: 500 * 1024
     });
     const html = typeof res.data === 'string' ? res.data : String(res.data);
+    await new Promise(resolve => setImmediate(resolve)); // yield to event loop before heavy sync parsing
     const $ = cheerio.load(html);
     return $('.social_website a').attr('href') || '';
   } catch (e) { return ''; }
@@ -179,8 +180,8 @@ async function fetchPageSafe(url) {
       maxRedirects: 5,
       responseType: 'text',
       transformResponse: [(data) => data], // force raw string, never auto-parse JSON
-      maxContentLength: 3 * 1024 * 1024, // 3MB cap - abort huge/misbehaving responses instead of buffering them fully
-      maxBodyLength: 3 * 1024 * 1024
+      maxContentLength: 500 * 1024, // 500KB cap - large pages block the event loop during sync parsing
+      maxBodyLength: 500 * 1024
     });
     return typeof res.data === 'string' ? res.data : String(res.data);
   } catch (e) { return null; }
@@ -196,6 +197,7 @@ async function enrichContact(website, countryHint) {
     if (!url) continue;
     const html = await fetchPageSafe(url);
     if (!html || typeof html !== 'string') continue;
+    await new Promise(resolve => setImmediate(resolve)); // yield to event loop before heavy sync parsing
     const $ = cheerio.load(html);
     allEmails = allEmails.concat(html.match(EMAIL_REGEX) || []);
     allPhones = allPhones.concat(extractPhones($('body').text(), countryHint));
